@@ -3,17 +3,23 @@ SELECT COUNT(*) AS total_delivered_orders
 FROM orders
 WHERE order_status = 'delivered';
 
---Total Revenue--
-SELECT ROUND(SUM(price), 2) AS total_revenue
-FROM order_items;
+-- Total Revenue (delivered orders only, excludes freight)
+SELECT ROUND(SUM(oi.price), 2) AS total_revenue
+FROM order_items oi
+JOIN orders o
+    ON oi.order_id = o.order_id
+WHERE o.order_status = 'delivered';
 
 --Average Order Value--
 WITH order_totals AS (
     SELECT
-        order_id,
-        SUM(price) AS order_value
-    FROM order_items
-    GROUP BY order_id
+        oi.order_id,
+        SUM(oi.price) AS order_value
+    FROM order_items oi
+	JOIN  orders o 
+		ON oi.order_id = o.order_id
+		WHERE o.order_status = 'delivered'
+    GROUP BY oi.order_id
 )
 SELECT ROUND(AVG(order_value), 2) AS average_order_value
 FROM order_totals;
@@ -36,10 +42,13 @@ SELECT
     ct.product_category_name_english AS category,
     ROUND(SUM(oi.price), 2) AS revenue
 FROM order_items oi
+JOIN orders o 
+	ON oi.order_id = o.order_id
 JOIN products p
     ON oi.product_id = p.product_id
 LEFT JOIN category_translation ct
     ON p.product_category_name = ct.product_category_name
+WHERE o.order_status = 'delivered'
 GROUP BY ct.product_category_name_english
 ORDER BY revenue DESC
 LIMIT 10;
@@ -50,10 +59,13 @@ SELECT
     ct.product_category_name_english AS category,
     COUNT(*) AS items_sold
 FROM order_items oi
+JOIN orders o 
+	ON oi.order_id = o.order_id
 JOIN products p
     ON oi.product_id = p.product_id
 LEFT JOIN category_translation ct
     ON p.product_category_name = ct.product_category_name
+WHERE o.order_status = 'delivered'
 GROUP BY ct.product_category_name_english
 ORDER BY items_sold DESC
 LIMIT 10;
@@ -89,7 +101,8 @@ GROUP BY c.customer_unique_id
 ORDER BY total_spent DESC
 LIMIT 10;
 
-
+/* include the delivered order status check since their previous order must have been completed first to be considered a repeat customer 
+because they could have just placed multiple orders simultaneously as a first time customer*/
 --Repeat Customers--
 WITH customer_orders AS (
     SELECT
@@ -98,6 +111,7 @@ WITH customer_orders AS (
     FROM customers c
     JOIN orders o
         ON c.customer_id = o.customer_id
+	WHERE o.order_status = 'delivered'
     GROUP BY c.customer_unique_id
 )
 SELECT
